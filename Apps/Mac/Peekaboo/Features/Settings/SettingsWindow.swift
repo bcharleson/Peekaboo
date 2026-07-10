@@ -223,7 +223,7 @@ struct SettingsToggleRow: View {
 struct AISettingsView: View {
     @Environment(PeekabooSettings.self) private var settings
     @State private var detectedOllamaModelOptions: [(id: String, name: String)] = []
-    @State private var hasAttemptedOllamaDetection = false
+    @State private var detectedLMStudioModelOptions: [(id: String, name: String)] = []
 
     static let builtinProviderCatalog: [(provider: String, models: [(id: String, name: String)])] = [
         ("openai", [
@@ -265,10 +265,7 @@ struct AISettingsView: View {
             ("MiniMax-M2.7-highspeed", "MiniMax China M2.7 Highspeed"),
         ]),
         ("ollama", AISettingsView.defaultOllamaModels),
-        ("lmstudio", [
-            ("openai/gpt-oss-120b", "GPT-OSS 120B"),
-            ("openai/gpt-oss-20b", "GPT-OSS 20B"),
-        ]),
+        ("lmstudio", AISettingsView.defaultLMStudioModels),
     ]
 
     /// Pretty name for a model id from the builtin catalog, regardless of how the
@@ -286,6 +283,9 @@ struct AISettingsView: View {
         var models = Self.builtinProviderCatalog
         if let ollamaIndex = models.firstIndex(where: { $0.provider == "ollama" }) {
             models[ollamaIndex] = ("ollama", self.ollamaModelOptions)
+        }
+        if let lmStudioIndex = models.firstIndex(where: { $0.provider == "lmstudio" }) {
+            models[lmStudioIndex] = ("lmstudio", self.lmStudioModelOptions)
         }
 
         let enabledCustomProviders = self.settings.customProviders.filter(\.value.enabled)
@@ -480,7 +480,7 @@ struct AISettingsView: View {
                     // the raw selection tag.
                     Menu {
                         ForEach(self.allModels, id: \.provider) { provider, models in
-                            Section(provider.capitalized) {
+                            Section(self.providerDisplayName(provider)) {
                                 ForEach(models, id: \.id) { model in
                                     let tag = self.modelTag(provider: provider, modelId: model.id)
                                     Button {
@@ -531,6 +531,23 @@ struct AISettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("LM Studio") {
+                TextField(
+                    "Base URL",
+                    text: $settings.lmStudioBaseURL,
+                    prompt: Text(PeekabooSettings.defaultLMStudioBaseURL))
+                    .multilineTextAlignment(.trailing)
+                if self.detectedLMStudioModelOptions.isEmpty {
+                    Text("Start LM Studio's local server, then load a model.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Found \(self.detectedLMStudioModelOptions.count) loaded model(s).")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             Section("Generation") {
                 HStack {
                     Text("Temperature")
@@ -558,7 +575,7 @@ struct AISettingsView: View {
                     LabeledContent("Vision Model") {
                         Menu {
                             ForEach(self.allModels, id: \.provider) { provider, models in
-                                Section(provider.capitalized) {
+                                Section(self.providerDisplayName(provider)) {
                                     ForEach(models, id: \.id) { model in
                                         Button {
                                             self.settings.customVisionModel = model.id
@@ -594,6 +611,24 @@ struct AISettingsView: View {
         .task(id: self.settings.ollamaBaseURL) {
             await self.refreshOllamaModels()
         }
+        .task(id: self.settings.lmStudioBaseURL) {
+            await self.refreshLMStudioModels()
+        }
+    }
+
+    private func providerDisplayName(_ provider: String) -> String {
+        switch provider.lowercased() {
+        case "lmstudio", "lm-studio":
+            "LM Studio"
+        case "minimax-cn":
+            "MiniMax China"
+        case "openai":
+            "OpenAI"
+        case "anthropic":
+            "Anthropic"
+        default:
+            provider.capitalized
+        }
     }
 
     private var ollamaModelOptions: [(id: String, name: String)] {
@@ -608,13 +643,20 @@ struct AISettingsView: View {
         ("llama3.2-vision:latest", "Llama 3.2 Vision"),
     ]
 
+    private static let defaultLMStudioModels: [(id: String, name: String)] = [
+        ("openai/gpt-oss-120b", "GPT-OSS 120B"),
+        ("openai/gpt-oss-20b", "GPT-OSS 20B"),
+    ]
+
+    private var lmStudioModelOptions: [(id: String, name: String)] {
+        if !self.detectedLMStudioModelOptions.isEmpty {
+            return self.detectedLMStudioModelOptions
+        }
+        return Self.defaultLMStudioModels
+    }
+
     @MainActor
     private func refreshOllamaModels() async {
-        if self.hasAttemptedOllamaDetection {
-            return
-        }
-        self.hasAttemptedOllamaDetection = true
-
         guard let url = URL(string: "\(self.settings.ollamaBaseURL)/api/tags") else { return }
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
@@ -622,6 +664,7 @@ struct AISettingsView: View {
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+                self.detectedOllamaModelOptions = []
                 return
             }
 
@@ -630,13 +673,52 @@ struct AISettingsView: View {
                 (id: model.name, name: model.displayName)
             }
 
-            if !models.isEmpty {
-                self.detectedOllamaModelOptions = models
-            }
+            self.detectedOllamaModelOptions = models
         } catch {
-            // Silently ignore detection failures; defaults remain.
+            self.detectedOllamaModelOptions = []
         }
     }
+
+    @MainActor
+    private func refreshLMStudioModels() async {
+        let baseURL = PeekabooSettings.normalizedLMStudioBaseURL(self.settings.lmStudioBaseURL)
+        guard let url = URL(string: "\(baseURL)/models") else {
+            self.detectedLMStudioModelOptions = []
+            return
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+                self.detectedLMStudioModelOptions = []
+                return
+            }
+
+            let decoded = try JSONDecoder().decode(LMStudioModelsResponse.self, from: data)
+            let models = decoded.data.map { model in
+                (id: model.id, name: model.displayName)
+            }
+
+            self.detectedLMStudioModelOptions = models
+        } catch {
+            self.detectedLMStudioModelOptions = []
+        }
+    }
+}
+
+private struct LMStudioModelsResponse: Decodable {
+    struct LMStudioModel: Decodable {
+        let id: String
+
+        var displayName: String {
+            self.id.split(separator: "/").last.map(String.init) ?? self.id
+        }
+    }
+
+    let data: [LMStudioModel]
 }
 
 private struct OllamaTagsResponse: Decodable {

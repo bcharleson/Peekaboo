@@ -86,8 +86,24 @@ final class PeekabooSettings {
         }
     }
 
+    static let defaultOllamaBaseURL = "http://localhost:11434"
+    static let defaultLMStudioBaseURL = "http://localhost:1234/v1"
+
     var ollamaBaseURL: String = "http://localhost:11434" {
-        didSet { self.save() }
+        didSet {
+            self.save()
+            self.updateConfigFile()
+        }
+    }
+
+    var lmStudioBaseURL: String = "http://localhost:1234/v1" {
+        didSet {
+            self.save()
+            self.updateConfigFile()
+            if !self.isLoading {
+                self.services?.refreshAgentService()
+            }
+        }
     }
 
     var selectedModel: String = "claude-opus-4-8" {
@@ -494,7 +510,9 @@ extension PeekabooSettings {
         self.miniMaxAPIKey = self.userDefaults.string(forKey: self.namespaced("miniMaxAPIKey")) ?? ""
         self.miniMaxChinaAPIKey = self.userDefaults.string(forKey: self.namespaced("miniMaxChinaAPIKey")) ?? ""
         self.ollamaBaseURL = self.userDefaults.string(forKey: self.namespaced(
-            "ollamaBaseURL")) ?? "http://localhost:11434"
+            "ollamaBaseURL")) ?? Self.defaultOllamaBaseURL
+        self.lmStudioBaseURL = self.userDefaults.string(forKey: self.namespaced(
+            "lmStudioBaseURL")) ?? Self.defaultLMStudioBaseURL
 
         let defaultModel = self.defaultModel(for: self.selectedProvider)
         self.selectedModel = self.userDefaults.string(forKey: self.namespaced("selectedModel")) ?? defaultModel
@@ -583,6 +601,7 @@ extension PeekabooSettings {
         self.userDefaults.set(self.miniMaxAPIKey, forKey: "\(self.keyPrefix)miniMaxAPIKey")
         self.userDefaults.set(self.miniMaxChinaAPIKey, forKey: "\(self.keyPrefix)miniMaxChinaAPIKey")
         self.userDefaults.set(self.ollamaBaseURL, forKey: "\(self.keyPrefix)ollamaBaseURL")
+        self.userDefaults.set(self.lmStudioBaseURL, forKey: "\(self.keyPrefix)lmStudioBaseURL")
         self.userDefaults.set(self.selectedModel, forKey: "\(self.keyPrefix)selectedModel")
         self.userDefaults.set(self.useCustomVisionModel, forKey: "\(self.keyPrefix)useCustomVisionModel")
         self.userDefaults.set(self.customVisionModel, forKey: "\(self.keyPrefix)customVisionModel")
@@ -689,8 +708,13 @@ extension PeekabooSettings {
 
         // Load Ollama base URL
         let ollamaURL = self.configManager.getOllamaBaseURL()
-        if ollamaURL != "http://localhost:11434" {
+        if ollamaURL != Self.defaultOllamaBaseURL {
             self.ollamaBaseURL = ollamaURL
+        }
+
+        let lmStudioURL = self.configManager.getLMStudioBaseURL()
+        if lmStudioURL != Self.defaultLMStudioBaseURL {
+            self.lmStudioBaseURL = lmStudioURL
         }
     }
 
@@ -750,8 +774,12 @@ extension PeekabooSettings {
                 config.aiProviders?.providers = "\(providerString),ollama/llava:latest"
 
                 // Set Ollama base URL if custom
-                if self.ollamaBaseURL != "http://localhost:11434" {
+                if self.ollamaBaseURL != Self.defaultOllamaBaseURL {
                     config.aiProviders?.ollamaBaseUrl = self.ollamaBaseURL
+                }
+
+                if self.lmStudioBaseURL != Self.defaultLMStudioBaseURL {
+                    config.aiProviders?.lmstudioBaseUrl = self.lmStudioBaseURL
                 }
             }
 
@@ -819,8 +847,14 @@ extension PeekabooSettings {
                 }
 
                 // Update Ollama base URL if custom
-                if self.ollamaBaseURL != "http://localhost:11434" {
+                if self.ollamaBaseURL != Self.defaultOllamaBaseURL {
                     config.aiProviders?.ollamaBaseUrl = self.ollamaBaseURL
+                }
+
+                if self.lmStudioBaseURL != Self.defaultLMStudioBaseURL {
+                    config.aiProviders?.lmstudioBaseUrl = self.lmStudioBaseURL
+                } else {
+                    config.aiProviders?.lmstudioBaseUrl = nil
                 }
 
                 // Mirror the element-box toggle into config.json so the CLI's
@@ -833,6 +867,21 @@ extension PeekabooSettings {
         } catch {
             print("Failed to update config.json: \(error)")
         }
+    }
+
+    func normalizedLMStudioBaseURL() -> String {
+        Self.normalizedLMStudioBaseURL(self.lmStudioBaseURL)
+    }
+
+    static func normalizedLMStudioBaseURL(_ raw: String) -> String {
+        var trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        while trimmed.hasSuffix("/") {
+            trimmed.removeLast()
+        }
+        if trimmed.hasSuffix("/v1") {
+            return trimmed
+        }
+        return "\(trimmed)/v1"
     }
 
     private func selectedProviderString() -> String {

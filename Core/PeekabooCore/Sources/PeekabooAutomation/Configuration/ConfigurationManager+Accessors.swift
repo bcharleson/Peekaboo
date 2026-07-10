@@ -295,6 +295,10 @@ extension ConfigurationManager {
         if !ollamaBaseURL.isEmpty {
             configuration.setBaseURL(ollamaBaseURL, for: .ollama)
         }
+        let lmStudioBaseURL = self.getLMStudioBaseURL()
+        if !lmStudioBaseURL.isEmpty {
+            configuration.setBaseURL(lmStudioBaseURL, for: .lmstudio)
+        }
     }
 
     /// Get Ollama base URL with proper precedence
@@ -306,6 +310,31 @@ extension ConfigurationManager {
             return envValue
         }
         return self.configuration?.aiProviders?.ollamaBaseUrl ?? "http://localhost:11434"
+    }
+
+    /// Get LM Studio base URL with proper precedence
+    public func getLMStudioBaseURL() -> String {
+        if let envValue = self.environmentValue(for: "PEEKABOO_LMSTUDIO_BASE_URL") {
+            return Self.normalizedLMStudioBaseURL(envValue)
+        }
+        if let envValue = self.environmentValue(for: "LMSTUDIO_BASE_URL") {
+            return Self.normalizedLMStudioBaseURL(envValue)
+        }
+        if let configured = self.configuration?.aiProviders?.lmstudioBaseUrl {
+            return Self.normalizedLMStudioBaseURL(configured)
+        }
+        return "http://localhost:1234/v1"
+    }
+
+    private static func normalizedLMStudioBaseURL(_ raw: String) -> String {
+        var trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        while trimmed.hasSuffix("/") {
+            trimmed.removeLast()
+        }
+        if trimmed.hasSuffix("/v1") {
+            return trimmed
+        }
+        return "\(trimmed)/v1"
     }
 
     /// Get default save path with proper precedence

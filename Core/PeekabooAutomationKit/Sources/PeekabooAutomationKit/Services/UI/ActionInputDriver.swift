@@ -207,7 +207,7 @@ struct ActionInputDriver: ActionInputDriving {
         case .cannotComplete, .failure:
             .targetUnavailable
         default:
-            .failed(error.localizedDescription)
+            .failed(String(describing: error))
         }
     }
 

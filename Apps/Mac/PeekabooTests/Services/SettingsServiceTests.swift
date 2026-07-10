@@ -337,6 +337,34 @@ struct PeekabooSettingsConfigHydrationTests {
     }
 
     @Test
+    func `Configuration-backed LM Studio base URL hydrates settings`() throws {
+        try withIsolatedSettingsEnvironment { configDir in
+            let configPath = configDir.appendingPathComponent("config.json")
+            let configJSON = """
+            {
+              "aiProviders": {
+                "providers": "lmstudio/openai/gpt-oss-120b",
+                "lmstudioBaseUrl": "http://127.0.0.1:1234"
+              },
+              "agent": {
+                "defaultModel": "openai/gpt-oss-120b"
+              }
+            }
+            """
+            try configJSON.write(to: configPath, atomically: true, encoding: .utf8)
+
+            ConfigurationManager.shared.resetForTesting()
+            _ = ConfigurationManager.shared.loadConfiguration()
+
+            let settings = PeekabooSettings()
+
+            #expect(settings.lmStudioBaseURL == "http://127.0.0.1:1234/v1")
+            #expect(PeekabooSettings.normalizedLMStudioBaseURL("http://localhost:1234") == "http://localhost:1234/v1")
+            #expect(ConfigurationManager.shared.getLMStudioBaseURL() == "http://127.0.0.1:1234/v1")
+        }
+    }
+
+    @Test
     func `Configuration-backed MiniMax API key validates settings provider`() throws {
         try withIsolatedSettingsEnvironment { configDir in
             let configPath = configDir.appendingPathComponent("config.json")

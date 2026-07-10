@@ -63,10 +63,15 @@ struct PeekabooApp: App {
                 self.settings.miniMaxChinaAPIKey,
                 for: .minimaxCN)
         }
-        if self.settings.ollamaBaseURL != "http://localhost:11434" {
+        if self.settings.ollamaBaseURL != PeekabooSettings.defaultOllamaBaseURL {
             TachikomaConfiguration.current.setBaseURL(
                 self.settings.ollamaBaseURL,
                 for: .ollama)
+        }
+        if self.settings.lmStudioBaseURL != PeekabooSettings.defaultLMStudioBaseURL {
+            TachikomaConfiguration.current.setBaseURL(
+                self.settings.normalizedLMStudioBaseURL(),
+                for: .lmstudio)
         }
     }
 

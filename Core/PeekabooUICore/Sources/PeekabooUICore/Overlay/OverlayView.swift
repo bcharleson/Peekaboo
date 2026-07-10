@@ -172,6 +172,39 @@ public struct OverlayView: View {
 
 // MARK: - Corner Indicators View
 
+private enum OverlayCorner {
+    case topLeft, topRight, bottomLeft, bottomRight
+}
+
+private struct OverlayCornerShape: Shape {
+    let corner: OverlayCorner
+
+    nonisolated func path(in rect: CGRect) -> SwiftUI.Path {
+        var path = SwiftUI.Path()
+
+        switch self.corner {
+        case .topLeft:
+            path.move(to: CGPoint(x: 0, y: rect.height))
+            path.addLine(to: CGPoint(x: 0, y: 0))
+            path.addLine(to: CGPoint(x: rect.width, y: 0))
+        case .topRight:
+            path.move(to: CGPoint(x: 0, y: 0))
+            path.addLine(to: CGPoint(x: rect.width, y: 0))
+            path.addLine(to: CGPoint(x: rect.width, y: rect.height))
+        case .bottomLeft:
+            path.move(to: CGPoint(x: 0, y: 0))
+            path.addLine(to: CGPoint(x: 0, y: rect.height))
+            path.addLine(to: CGPoint(x: rect.width, y: rect.height))
+        case .bottomRight:
+            path.move(to: CGPoint(x: 0, y: rect.height))
+            path.addLine(to: CGPoint(x: rect.width, y: rect.height))
+            path.addLine(to: CGPoint(x: rect.width, y: 0))
+        }
+
+        return path
+    }
+}
+
 struct CornerIndicatorsView: View {
     let style: ElementStyle
     let size: CGSize
@@ -182,61 +215,28 @@ struct CornerIndicatorsView: View {
     var body: some View {
         ZStack {
             // Top-left corner
-            CornerShape(corner: .topLeft)
+            OverlayCornerShape(corner: .topLeft)
                 .stroke(Color(cgColor: self.style.primaryColor), lineWidth: self.cornerThickness)
                 .frame(width: self.cornerSize, height: self.cornerSize)
                 .position(x: 0, y: 0)
 
             // Top-right corner
-            CornerShape(corner: .topRight)
+            OverlayCornerShape(corner: .topRight)
                 .stroke(Color(cgColor: self.style.primaryColor), lineWidth: self.cornerThickness)
                 .frame(width: self.cornerSize, height: self.cornerSize)
                 .position(x: self.size.width, y: 0)
 
             // Bottom-left corner
-            CornerShape(corner: .bottomLeft)
+            OverlayCornerShape(corner: .bottomLeft)
                 .stroke(Color(cgColor: self.style.primaryColor), lineWidth: self.cornerThickness)
                 .frame(width: self.cornerSize, height: self.cornerSize)
                 .position(x: 0, y: self.size.height)
 
             // Bottom-right corner
-            CornerShape(corner: .bottomRight)
+            OverlayCornerShape(corner: .bottomRight)
                 .stroke(Color(cgColor: self.style.primaryColor), lineWidth: self.cornerThickness)
                 .frame(width: self.cornerSize, height: self.cornerSize)
                 .position(x: self.size.width, y: self.size.height)
-        }
-    }
-
-    struct CornerShape: Shape {
-        enum Corner {
-            case topLeft, topRight, bottomLeft, bottomRight
-        }
-
-        let corner: Corner
-
-        func path(in rect: CGRect) -> SwiftUI.Path {
-            var path = SwiftUI.Path()
-
-            switch self.corner {
-            case .topLeft:
-                path.move(to: CGPoint(x: 0, y: rect.height))
-                path.addLine(to: CGPoint(x: 0, y: 0))
-                path.addLine(to: CGPoint(x: rect.width, y: 0))
-            case .topRight:
-                path.move(to: CGPoint(x: 0, y: 0))
-                path.addLine(to: CGPoint(x: rect.width, y: 0))
-                path.addLine(to: CGPoint(x: rect.width, y: rect.height))
-            case .bottomLeft:
-                path.move(to: CGPoint(x: 0, y: 0))
-                path.addLine(to: CGPoint(x: 0, y: rect.height))
-                path.addLine(to: CGPoint(x: rect.width, y: rect.height))
-            case .bottomRight:
-                path.move(to: CGPoint(x: 0, y: rect.height))
-                path.addLine(to: CGPoint(x: rect.width, y: rect.height))
-                path.addLine(to: CGPoint(x: rect.width, y: 0))
-            }
-
-            return path
         }
     }
 }
